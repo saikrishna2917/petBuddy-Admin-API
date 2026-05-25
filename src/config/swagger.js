@@ -1,4 +1,5 @@
 const swaggerJsdoc = require("swagger-jsdoc");
+const path = require("path");
 
 const options = {
   definition: {
@@ -20,7 +21,7 @@ const options = {
     ],
   },
   // Paths to files containing OpenAPI definitions
-  apis: ["./src/routes/*.js", "./src/controllers/*.js"],
+  apis: [path.join(__dirname, "../routes/*.js")],
 };
 
 const swaggerSpec = swaggerJsdoc(options);

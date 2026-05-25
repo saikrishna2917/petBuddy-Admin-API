@@ -27,6 +27,7 @@
     "mongoose": "^9.6.2",
     "morgan": "^1.10.1",
     "nodemailer": "^8.0.8",
+    "path": "^0.12.7",
     "swagger-jsdoc": "^6.3.0",
     "swagger-themes": "^1.4.3",
     "swagger-ui-express": "^5.0.1",

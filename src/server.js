@@ -19,7 +19,14 @@ const options = {
 // Swagger UI documentation
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec, options));
 app.use(routes);
-await connectDB(); // Wait for database connection before starting the server
+connectDB()
+  .then(() => {
+    logger.info("Database Connected Successfully");
+  })
+  .catch((error) => {
+    logger.error(`Database Connection Failed: ${error}`);
+  });
+// await connectDB(); // Wait for database connection before starting the server
 // app.listen(process.env.PORT, process.env.HOST, function (err) {
 //   if (err) {
 //     logger.error(`Failed to start the server: ${err}`);
@@ -36,6 +43,6 @@ await connectDB(); // Wait for database connection before starting the server
 // }
 
 module.exports = app;
-if (require.main === module) {
-  run();
-}
+// if (require.main === module) {
+//   run();
+// }

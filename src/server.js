@@ -19,6 +19,12 @@ const options = {
 // Swagger UI documentation
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec, options));
 app.use(routes);
+app.get("/", (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: "PetBuddy API Running Successfully",
+  });
+});
 connectDB()
   .then(() => {
     logger.info("Database Connected Successfully");

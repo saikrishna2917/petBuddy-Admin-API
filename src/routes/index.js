@@ -1,7 +1,7 @@
-const router = module.exports = require("express")();
+const router = (module.exports = require("express")());
 
 // Mount Auth routes
-router.use('/api/auth', require('./admin.routes'));
+router.use("/api/auth", require("./admin.routes"));
 
 /**
  * @swagger
@@ -21,14 +21,8 @@ router.use('/api/auth', require('./admin.routes'));
  *                   type: string
  *                   example: Welcome to the PetBuddy API!
  */
-router.get('/welcome', (req, res) => {
-    res.json({ message: 'Welcome to the PetBuddy API!' });
-});
-
-// Fallback for root
-router.get('/', (req, res) => {
-    res.json({ message: 'PetBuddy API is running' });
+router.get("/welcome", (req, res) => {
+  res.json({ message: "Welcome to the PetBuddy API!" });
 });
 
 module.exports = router;
-

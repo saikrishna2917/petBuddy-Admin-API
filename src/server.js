@@ -10,8 +10,8 @@ const swaggerSpec = require("./config/swagger");
 // async function run() {
 //   try {
 const options = {
-  customCssUrl:
-    "https://cdn.jsdelivr.net/npm/swagger-ui-themes@3.0.0/themes/3.x/theme-material.css",
+  // customCssUrl:
+  //   "https://cdn.jsdelivr.net/npm/swagger-ui-themes@3.0.0/themes/3.x/theme-material.css",
   customSiteTitle: "PetBuddy API Documentation",
 };
 

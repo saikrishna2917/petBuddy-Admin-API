@@ -19,9 +19,18 @@ const options = {
         description: "Development server",
       },
     ],
+    components: {
+      securitySchemes: {
+        bearerAuth: {
+          type: "http",
+          scheme: "bearer",
+          bearerFormat: "JWT",
+        },
+      },
+    },
   },
   // Paths to files containing OpenAPI definitions
-  apis: [path.join(__dirname, "../routes/*.js")],
+  apis: ["./src/routes/*.js", "./src/controllers/*.js"],
 };
 
 const swaggerSpec = swaggerJsdoc(options);

@@ -1,15 +1,20 @@
 const mongoose = require('mongoose');
 
-const resetTokenSchema = new mongoose.Schema(
+const otpSchema = new mongoose.Schema(
   {
-    adminId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Admin',
-      required: true,
-    },
-    token: {
+    email: {
       type: String,
       required: true,
+    },
+    otp: {
+      type: String,
+      required: true,
+    },
+    firstName: {
+      type: String,
+    },
+    lastName: {
+      type: String,
     },
     createdAt: {
       type: Date,
@@ -20,6 +25,6 @@ const resetTokenSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-const ResetToken = mongoose.model('ResetToken', resetTokenSchema);
+const OTP = mongoose.model('OTP', otpSchema);
 
-module.exports = ResetToken;
+module.exports = OTP;

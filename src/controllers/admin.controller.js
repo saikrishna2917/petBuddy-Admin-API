@@ -1,30 +1,38 @@
-const Admin = require('../models/Admin');
-const ResetToken = require('../models/ResetToken');
-const { sendPasswordResetEmail } = require('../utils/email');
-const jwt = require('jsonwebtoken');
-const Joi = require('joi');
-const bcrypt = require('bcryptjs');
-const crypto = require('crypto');
+const Admin = require("../models/Admin");
+const OTP = require("../models/OTP");
+const { sendPasswordResetOTP, sendSignupOTP } = require("../utils/email");
+const jwt = require("jsonwebtoken");
+const Joi = require("joi");
+const bcrypt = require("bcryptjs");
+const crypto = require("crypto");
 
 // Joi Validation Schemas
 const signupSchema = Joi.object({
+  password: Joi.string()
+    .min(8)
+    .pattern(new RegExp("(?=.*[a-z])"))
+    .pattern(new RegExp("(?=.*[A-Z])"))
+    .pattern(new RegExp("(?=.*[0-9])"))
+    .pattern(new RegExp("(?=.*[!@#\\$%\\^&\\*])"))
+    .required()
+    .messages({
+      "string.min": "Password must be at least 8 characters long.",
+      "string.pattern.base":
+        "Password must contain at least 1 uppercase letter, 1 lowercase letter, 1 number, and 1 special character.",
+    }),
+  confirmPassword: Joi.any().equal(Joi.ref("password")).required().messages({
+    "any.only": "Confirm Password does not match Password.",
+  }),
+  otp: Joi.string().length(6).pattern(/^[0-9]+$/).required().messages({
+    "string.length": "OTP must be exactly 6 digits.",
+    "string.pattern.base": "OTP must contain only numbers.",
+  }),
+});
+
+const sendSignupOTPSchema = Joi.object({
   firstName: Joi.string().required(),
   lastName: Joi.string().required(),
   email: Joi.string().email().required(),
-  password: Joi.string()
-    .min(8)
-    .pattern(new RegExp('(?=.*[a-z])'))
-    .pattern(new RegExp('(?=.*[A-Z])'))
-    .pattern(new RegExp('(?=.*[0-9])'))
-    .pattern(new RegExp('(?=.*[!@#\\$%\\^&\\*])'))
-    .required()
-    .messages({
-      'string.min': 'Password must be at least 8 characters long.',
-      'string.pattern.base': 'Password must contain at least 1 uppercase letter, 1 lowercase letter, 1 number, and 1 special character.',
-    }),
-  confirmPassword: Joi.any().equal(Joi.ref('password')).required().messages({
-    'any.only': 'Confirm Password does not match Password.',
-  }),
 });
 
 const loginSchema = Joi.object({
@@ -37,17 +45,27 @@ const forgotPasswordSchema = Joi.object({
 });
 
 const resetPasswordSchema = Joi.object({
-  token: Joi.string().required(),
+  otp: Joi.string().length(6).pattern(/^[0-9]+$/).required().messages({
+    "string.length": "OTP must be exactly 6 digits.",
+    "string.pattern.base": "OTP must contain only numbers.",
+  }),
   password: Joi.string()
     .min(8)
-    .pattern(new RegExp('(?=.*[a-z])'))
-    .pattern(new RegExp('(?=.*[A-Z])'))
-    .pattern(new RegExp('(?=.*[0-9])'))
-    .pattern(new RegExp('(?=.*[!@#\\$%\\^&\\*])'))
+    .pattern(new RegExp("(?=.*[a-z])"))
+    .pattern(new RegExp("(?=.*[A-Z])"))
+    .pattern(new RegExp("(?=.*[0-9])"))
+    .pattern(new RegExp("(?=.*[!@#\\$%\\^&\\*])"))
     .required(),
-  confirmPassword: Joi.any().equal(Joi.ref('password')).required().messages({
-    'any.only': 'Confirm Password does not match Password.',
+  confirmPassword: Joi.any().equal(Joi.ref("password")).required().messages({
+    "any.only": "Confirm Password does not match Password.",
   }),
+});
+
+const updateAdminSchema = Joi.object({
+  firstName: Joi.string().optional(),
+  lastName: Joi.string().optional(),
+  phoneNumber: Joi.string().optional().allow(""),
+  profilePicture: Joi.string().optional().allow(""),
 });
 
 /**
@@ -57,9 +75,13 @@ const resetPasswordSchema = Joi.object({
  * @returns {string} The signed JWT token valid for 1 day.
  */
 const generateToken = (adminId) => {
-  return jwt.sign({ id: adminId }, process.env.JWT_SECRET || 'secret-fallback', {
-    expiresIn: '1d',
-  });
+  return jwt.sign(
+    { id: adminId },
+    process.env.JWT_SECRET || "secret-fallback",
+    {
+      expiresIn: "1d",
+    },
+  );
 };
 
 /**
@@ -73,11 +95,64 @@ exports.checkRegistration = async (req, res) => {
   try {
     const adminCount = await Admin.countDocuments();
     if (adminCount === 0) {
-      return res.status(200).json({ registered: false, message: 'No admin account exists. Please sign up.' });
+      return res
+        .status(200)
+        .json({
+          registered: false,
+          message: "No admin account exists. Please sign up.",
+        });
     }
-    return res.status(200).json({ registered: true, message: 'Admin account already exists.' });
+    return res
+      .status(200)
+      .json({ registered: true, message: "Admin account already exists." });
   } catch (error) {
-    return res.status(500).json({ error: 'Server error' });
+    return res.status(500).json({ error: "Server error" });
+  }
+};
+
+/**
+ * @function sendSignupOTP
+ * @description Sends a 6-digit OTP to verify email before admin signup.
+ * @param {Object} req - Express request object containing `email`.
+ * @param {Object} res - Express response object.
+ * @returns {Promise<Object>} JSON response indicating success or error.
+ */
+exports.sendSignupOTP = async (req, res) => {
+  try {
+    const { error, value } = sendSignupOTPSchema.validate(req.body);
+    if (error) {
+      return res.status(400).json({ error: error.details[0].message });
+    }
+
+    const email = value.email.toLowerCase();
+
+    const adminCount = await Admin.countDocuments();
+    if (adminCount > 0) {
+      return res.status(403).json({ error: "An admin account already exists." });
+    }
+
+    // Generate 6-digit OTP
+    const rawOTP = Math.floor(100000 + Math.random() * 900000).toString();
+    const hashedOTP = crypto
+      .createHash("sha256")
+      .update(rawOTP)
+      .digest("hex");
+
+    // Remove any existing OTP for this email
+    await OTP.deleteMany({ email });
+
+    await OTP.create({
+      email,
+      otp: hashedOTP,
+      firstName: value.firstName,
+      lastName: value.lastName,
+    });
+
+    await sendSignupOTP(email, rawOTP);
+
+    return res.status(200).json({ message: "Verification OTP sent successfully." });
+  } catch (error) {
+    return res.status(500).json({ error: "Server error" });
   }
 };
 
@@ -93,7 +168,9 @@ exports.signup = async (req, res) => {
     // 1. Check if admin already exists
     const adminCount = await Admin.countDocuments();
     if (adminCount > 0) {
-      return res.status(403).json({ error: 'An admin account already exists.' });
+      return res
+        .status(403)
+        .json({ error: "An admin account already exists." });
     }
 
     // 2. Validate request body
@@ -102,25 +179,48 @@ exports.signup = async (req, res) => {
       return res.status(400).json({ error: error.details[0].message });
     }
 
-    // 3. Hash Password
+    // 3. Verify OTP
+    const hashedOTP = crypto
+      .createHash("sha256")
+      .update(value.otp)
+      .digest("hex");
+
+    const otpRecord = await OTP.findOne({ otp: hashedOTP });
+    if (!otpRecord) {
+      return res.status(400).json({ error: "Invalid or expired OTP." });
+    }
+
+    // Verify email is not registered yet (in case they verified but another admin was created)
+    const existingAdmin = await Admin.findOne({ email: otpRecord.email });
+    if (existingAdmin) {
+      return res.status(403).json({ error: "An admin account with this email already exists." });
+    }
+
+    // 4. Hash Password
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(value.password, salt);
 
-    // 4. Create Admin
+    // 5. Create Admin
     const admin = new Admin({
-      firstName: value.firstName,
-      lastName: value.lastName,
-      email: value.email,
+      firstName: otpRecord.firstName,
+      lastName: otpRecord.lastName,
+      email: otpRecord.email,
       password: hashedPassword,
+      isVerified: true,
     });
     await admin.save();
 
-    return res.status(201).json({ message: 'Admin account created successfully.' });
+    // Delete OTP after successful signup
+    await OTP.deleteOne({ _id: otpRecord._id });
+
+    return res
+      .status(201)
+      .json({ message: "Admin account created successfully." });
   } catch (error) {
     if (error.code === 11000) {
-      return res.status(400).json({ error: 'Email already in use.' });
+      return res.status(400).json({ error: "Email already in use." });
     }
-    return res.status(500).json({ error: 'Server error' });
+    return res.status(500).json({ error: "Server error" });
   }
 };
 
@@ -140,25 +240,31 @@ exports.login = async (req, res) => {
 
     const admin = await Admin.findOne({ email: value.email.toLowerCase() });
     if (!admin) {
-      return res.status(401).json({ error: 'Invalid email or password.' });
+      return res
+        .status(401)
+        .json({ error: `User not found with this email, ${value.email}` });
     }
 
     const isMatch = await bcrypt.compare(value.password, admin.password);
     if (!isMatch) {
-      return res.status(401).json({ error: 'Invalid email or password.' });
+      return res.status(401).json({ error: "Invalid email or password." });
     }
 
     const token = generateToken(admin._id);
 
+    // Update last login
+    admin.lastLogin = Date.now();
+    await admin.save();
+
     // Set HTTP-Only Cookie
-    res.cookie('token', token, {
+    res.cookie("token", token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: process.env.NODE_ENV === "production",
       maxAge: 24 * 60 * 60 * 1000, // 1 day
     });
 
     return res.status(200).json({
-      message: 'Login successful',
+      message: "Login successful",
       token,
       admin: {
         id: admin._id,
@@ -168,7 +274,7 @@ exports.login = async (req, res) => {
       },
     });
   } catch (error) {
-    return res.status(500).json({ error: 'Server error' });
+    return res.status(500).json({ error: "Server error" });
   }
 };
 
@@ -189,25 +295,38 @@ exports.forgotPassword = async (req, res) => {
     const admin = await Admin.findOne({ email: value.email.toLowerCase() });
     if (!admin) {
       // Return success even if not found to prevent email enumeration
-      return res.status(200).json({ message: 'If that email is registered, a password reset link has been sent.' });
+      return res
+        .status(200)
+        .json({
+          message:
+            "If that email is registered, a password reset link has been sent.",
+        });
     }
 
-    // Generate Token
-    const rawToken = crypto.randomBytes(32).toString('hex');
-    const hashedToken = crypto.createHash('sha256').update(rawToken).digest('hex');
+    // Generate 6-digit OTP
+    const rawOTP = Math.floor(100000 + Math.random() * 900000).toString();
+    const hashedOTP = crypto
+      .createHash("sha256")
+      .update(rawOTP)
+      .digest("hex");
 
     // Save Token
-    await ResetToken.create({
-      adminId: admin._id,
-      token: hashedToken,
+    await OTP.create({
+      email: admin.email,
+      otp: hashedOTP,
     });
 
-    // Send Email (send raw token, keep hashed in DB)
-    await sendPasswordResetEmail(admin.email, rawToken);
+    // Send Email (send raw OTP, keep hashed in DB)
+    await sendPasswordResetOTP(admin.email, rawOTP);
 
-    return res.status(200).json({ message: 'If that email is registered, a password reset link has been sent.' });
+    return res
+      .status(200)
+      .json({
+        message:
+          "If that email is registered, a password reset link has been sent.",
+      });
   } catch (error) {
-    return res.status(500).json({ error: 'Server error' });
+    return res.status(500).json({ error: "Server error" });
   }
 };
 
@@ -225,29 +344,37 @@ exports.resetPassword = async (req, res) => {
       return res.status(400).json({ error: error.details[0].message });
     }
 
-    const hashedToken = crypto.createHash('sha256').update(value.token).digest('hex');
+    const hashedOTP = crypto
+      .createHash("sha256")
+      .update(value.otp)
+      .digest("hex");
 
-    const resetRecord = await ResetToken.findOne({ token: hashedToken });
+    const resetRecord = await OTP.findOne({ otp: hashedOTP });
     if (!resetRecord) {
-      return res.status(400).json({ error: 'Invalid or expired password reset token.' });
+      return res
+        .status(400)
+        .json({ error: "Invalid or expired OTP." });
     }
 
-    const admin = await Admin.findById(resetRecord.adminId);
+    const admin = await Admin.findOne({ email: resetRecord.email });
     if (!admin) {
-      return res.status(400).json({ error: 'Admin not found.' });
+      return res.status(400).json({ error: "Admin not found." });
     }
 
     // Hash New Password
     const salt = await bcrypt.genSalt(10);
     admin.password = await bcrypt.hash(value.password, salt);
+    admin.passwordChangedAt = Date.now();
     await admin.save();
 
     // Delete token after use
-    await ResetToken.deleteOne({ _id: resetRecord._id });
+    await OTP.deleteOne({ _id: resetRecord._id });
 
-    return res.status(200).json({ message: 'Password has been successfully reset.' });
+    return res
+      .status(200)
+      .json({ message: "Password has been successfully reset." });
   } catch (error) {
-    return res.status(500).json({ error: 'Server error' });
+    return res.status(500).json({ error: "Server error" });
   }
 };
 
@@ -259,6 +386,46 @@ exports.resetPassword = async (req, res) => {
  * @returns {Object} JSON response indicating logout was successful.
  */
 exports.logout = (req, res) => {
-  res.clearCookie('token');
-  return res.status(200).json({ message: 'Logout successful.' });
+  res.clearCookie("token");
+  return res.status(200).json({ message: "Logout successful." });
+};
+
+/**
+ * @function updateAdmin
+ * @description Updates the authenticated admin's profile details.
+ * @param {Object} req - Express request object.
+ * @param {Object} res - Express response object.
+ * @returns {Promise<Object>} JSON response with updated admin details.
+ */
+exports.updateAdmin = async (req, res) => {
+  try {
+    const { error, value } = updateAdminSchema.validate(req.body);
+    if (error) {
+      return res.status(400).json({ error: error.details[0].message });
+    }
+
+    const admin = req.admin; // Provided by authMiddleware
+
+    if (value.firstName) admin.firstName = value.firstName;
+    if (value.lastName) admin.lastName = value.lastName;
+    if (value.phoneNumber !== undefined) admin.phoneNumber = value.phoneNumber;
+    if (value.profilePicture !== undefined) admin.profilePicture = value.profilePicture;
+
+    await admin.save();
+
+    return res.status(200).json({
+      message: "Profile updated successfully.",
+      admin: {
+        id: admin._id,
+        firstName: admin.firstName,
+        lastName: admin.lastName,
+        email: admin.email,
+        phoneNumber: admin.phoneNumber,
+        profilePicture: admin.profilePicture,
+        role: admin.role,
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({ error: "Server error" });
+  }
 };

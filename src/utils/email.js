@@ -36,20 +36,17 @@ const setupTransporter = async () => {
 
 setupTransporter();
 
-const sendPasswordResetEmail = async (to, resetToken) => {
+const sendPasswordResetOTP = async (to, otp) => {
   if (!transporter) {
     await setupTransporter();
   }
 
-  const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
-  const resetLink = `${frontendUrl}/reset-password?token=${resetToken}`;
-
   const mailOptions = {
     from: '"PetBuddy Admin" <no-reply@petbuddy.com>',
     to,
-    subject: "Password Reset Request",
-    text: `You requested a password reset. Click the following link to reset your password: ${resetLink} \n\nThis link will expire in 30 minutes.`,
-    html: `<p>You requested a password reset.</p><p>Click the following link to reset your password:</p><a href="${resetLink}">${resetLink}</a><p>This link will expire in 30 minutes.</p>`,
+    subject: "Password Reset OTP",
+    text: `You requested a password reset. Your 6-digit OTP is: ${otp}\n\nThis OTP will expire in 30 minutes.`,
+    html: `<p>You requested a password reset.</p><p>Your 6-digit OTP is: <strong>${otp}</strong></p><p>This OTP will expire in 30 minutes.</p>`,
   };
 
   const info = await transporter.sendMail(mailOptions);
@@ -63,6 +60,31 @@ const sendPasswordResetEmail = async (to, resetToken) => {
   return info;
 };
 
+const sendSignupOTP = async (to, otp) => {
+  if (!transporter) {
+    await setupTransporter();
+  }
+
+  const mailOptions = {
+    from: process.env.SMTP_USER,
+    to,
+    subject: "Verify Your Email for PetBuddy",
+    text: `Welcome to PetBuddy! Your 6-digit email verification OTP is: ${otp}\n\nThis OTP will expire in 30 minutes.`,
+    html: `<p>Welcome to PetBuddy!</p><p>Your 6-digit email verification OTP is: <strong>${otp}</strong></p><p>This OTP will expire in 30 minutes.</p>`,
+  };
+
+  const info = await transporter.sendMail(mailOptions);
+
+  if (info.messageId && !process.env.SMTP_HOST) {
+    logger.info(
+      `Preview URL for Signup Verification Email: ${nodemailer.getTestMessageUrl(info)}`,
+    );
+  }
+
+  return info;
+};
+
 module.exports = {
-  sendPasswordResetEmail,
+  sendPasswordResetOTP,
+  sendSignupOTP,
 };

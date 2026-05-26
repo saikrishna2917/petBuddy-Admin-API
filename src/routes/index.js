@@ -1,7 +1,10 @@
 const router = (module.exports = require("express")());
 
-// Mount Auth routes
-router.use("/api/auth", require("./admin.routes"));
+// Mount Auth routes (public)
+router.use("/api/auth", require("./auth.routes"));
+
+// Mount Admin routes (protected)
+router.use("/api/admin", require("./admin.routes"));
 
 /**
  * @swagger

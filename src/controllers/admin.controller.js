@@ -106,7 +106,11 @@ exports.checkRegistration = async (req, res) => {
       .status(200)
       .json({ registered: true, message: "Admin account already exists." });
   } catch (error) {
-    return res.status(500).json({ error: "Server error" });
+    return res.status(500).json({
+      error: "Server error",
+      message: error.message,
+      stack: error.stack,
+    });
   }
 };
 
@@ -152,7 +156,11 @@ exports.sendSignupOTP = async (req, res) => {
 
     return res.status(200).json({ message: "Verification OTP sent successfully." });
   } catch (error) {
-    return res.status(500).json({ error: "Server error" });
+    return res.status(500).json({
+      error: "Server error",
+      message: error.message,
+      stack: error.stack,
+    });
   }
 };
 
@@ -220,7 +228,11 @@ exports.signup = async (req, res) => {
     if (error.code === 11000) {
       return res.status(400).json({ error: "Email already in use." });
     }
-    return res.status(500).json({ error: "Server error" });
+    return res.status(500).json({
+      error: "Server error",
+      message: error.message,
+      stack: error.stack,
+    });
   }
 };
 
@@ -274,7 +286,11 @@ exports.login = async (req, res) => {
       },
     });
   } catch (error) {
-    return res.status(500).json({ error: "Server error" });
+    return res.status(500).json({
+      error: "Server error",
+      message: error.message,
+      stack: error.stack,
+    });
   }
 };
 
@@ -326,7 +342,11 @@ exports.forgotPassword = async (req, res) => {
           "If that email is registered, a password reset link has been sent.",
       });
   } catch (error) {
-    return res.status(500).json({ error: "Server error" });
+    return res.status(500).json({
+      error: "Server error",
+      message: error.message,
+      stack: error.stack,
+    });
   }
 };
 
@@ -374,7 +394,11 @@ exports.resetPassword = async (req, res) => {
       .status(200)
       .json({ message: "Password has been successfully reset." });
   } catch (error) {
-    return res.status(500).json({ error: "Server error" });
+    return res.status(500).json({
+      error: "Server error",
+      message: error.message,
+      stack: error.stack,
+    });
   }
 };
 
@@ -426,6 +450,10 @@ exports.updateAdmin = async (req, res) => {
       },
     });
   } catch (error) {
-    return res.status(500).json({ error: "Server error" });
+    return res.status(500).json({
+      error: "Server error",
+      message: error.message,
+      stack: error.stack,
+    });
   }
 };

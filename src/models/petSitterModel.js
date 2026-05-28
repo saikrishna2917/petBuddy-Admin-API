@@ -35,7 +35,7 @@ const petSitterSchema = new mongoose.Schema({
   isVerified: { type: Boolean, default: false },
   status: {
     type: String,
-    enum: ["PENDING", "APPROVED", "REJECTED", "BLOCKED", "INACTIVE"],
+    enum: ["PENDING", "APPROVED", "REJECTED", "BLOCKED"],
     default: "PENDING",
   },
   isDeleted: { type: Boolean, default: false },

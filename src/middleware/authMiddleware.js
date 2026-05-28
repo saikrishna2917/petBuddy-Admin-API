@@ -14,7 +14,7 @@ exports.authorization = async (req, res, next) => {
     "/swagger.json",
     "/",
   ];
-
+///////////////////////////
   // If the path is in the public list, or starts with /api-docs, skip token check
   if (publicPaths.includes(req.path) || req.path.startsWith("/api-docs")) {
     return next();

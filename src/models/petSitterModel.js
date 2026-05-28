@@ -22,12 +22,12 @@ const petSitterSchema = new mongoose.Schema({
       type: {
         type: String,
         enum: ["Point"],
-        default: "Point"
+        default: "Point",
       },
       coordinates: {
         type: [Number],
-        default: [0, 0]
-      }
+        default: [0, 0],
+      },
     },
   },
   isEmailVerified: { type: Boolean, default: false },
@@ -49,9 +49,14 @@ petSitterSchema.pre("save", function (next) {
   next();
 });
 
-petSitterSchema.pre(["updateOne", "findOneAndUpdate", "update"], function (next) {
-  this.set({ updatedOn: Date.now() });
-  if (typeof next === "function") next();
-});
+petSitterSchema.pre(
+  ["updateOne", "findOneAndUpdate", "update"],
+  function (next) {
+    this.set({ updatedOn: Date.now() });
+    if (typeof next === "function") next();
+  },
+);
 
-module.exports = mongoose.model("PetSitterModel", petSitterSchema);
+const petSitterModel = mongoose.model("PetSitterModel", petSitterSchema);
+
+module.exports = petSitterModel;

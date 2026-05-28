@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const sitterController = require("../controllers/sitter.controller");
+const dashboardController = require("../controllers/dashboard.controller");
 
 /**
  * @swagger
@@ -41,7 +41,7 @@ const sitterController = require("../controllers/sitter.controller");
  *       500:
  *         description: Server error
  */
-router.get("/sitters/stats", sitterController.getSitterStats);
+router.get("/sitters/stats", dashboardController.getSitterStats);
 
 /**
  * @swagger
@@ -119,7 +119,7 @@ router.get("/sitters/stats", sitterController.getSitterStats);
  *       500:
  *         description: Server error
  */
-router.get("/sitters", sitterController.getSittersList);
+router.get("/sitters", dashboardController.getSittersList);
 
 /**
  * @swagger
@@ -169,6 +169,40 @@ router.get("/sitters", sitterController.getSittersList);
  *       500:
  *         description: Server error
  */
-router.put("/sitters/:id/status", sitterController.updateSitterStatus);
+router.put("/sitters/:id/status", dashboardController.updateSitterStatus);
+
+/**
+ * @swagger
+ * /api/dashboard/sitters/{id}:
+ *   get:
+ *     summary: Get full details of a pet sitter by ID for profile verification
+ *     tags: [Dashboard]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The pet sitter's MongoDB ID
+ *     responses:
+ *       200:
+ *         description: Pet sitter details retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *       404:
+ *         description: Pet Sitter not found
+ *       500:
+ *         description: Server error
+ */
+router.get("/sitters/:id", dashboardController.getSitterDetails);
 
 module.exports = router;

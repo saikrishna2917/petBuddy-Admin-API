@@ -5,6 +5,7 @@ const jwt = require("jsonwebtoken");
 const Joi = require("joi");
 const bcrypt = require("bcryptjs");
 const crypto = require("crypto");
+const logger = require("../utils/logger");
 
 // Joi Validation Schemas
 const signupSchema = Joi.object({
@@ -93,8 +94,10 @@ const generateToken = (adminId) => {
  */
 exports.checkRegistration = async (req, res) => {
   try {
+    logger.info("Checking admin registration status");
     const adminCount = await Admin.countDocuments();
     if (adminCount === 0) {
+      logger.info("Admin registration check: no admin registered yet");
       return res
         .status(200)
         .json({
@@ -102,10 +105,12 @@ exports.checkRegistration = async (req, res) => {
           message: "No admin account exists. Please sign up.",
         });
     }
+    logger.info("Admin registration check: admin account already exists");
     return res
       .status(200)
       .json({ registered: true, message: "Admin account already exists." });
   } catch (error) {
+    logger.error(`Error checking admin registration status: ${error.message}`);
     return res.status(500).json({
       error: "Server error",
       message: error.message,
@@ -123,15 +128,19 @@ exports.checkRegistration = async (req, res) => {
  */
 exports.sendSignupOTP = async (req, res) => {
   try {
+    logger.info("Request received to send admin signup OTP");
     const { error, value } = sendSignupOTPSchema.validate(req.body);
     if (error) {
+      logger.warn(`Signup OTP request validation failed: ${error.details[0].message}`);
       return res.status(400).json({ error: error.details[0].message });
     }
 
     const email = value.email.toLowerCase();
+    logger.info(`Sending signup OTP to email: ${email}`);
 
     const adminCount = await Admin.countDocuments();
     if (adminCount > 0) {
+      logger.warn(`Signup OTP request denied for ${email}. Admin already exists.`);
       return res.status(403).json({ error: "An admin account already exists." });
     }
 
@@ -153,9 +162,11 @@ exports.sendSignupOTP = async (req, res) => {
     });
 
     await sendSignupOTP(email, rawOTP);
+    logger.info(`Verification OTP sent successfully to ${email}`);
 
     return res.status(200).json({ message: "Verification OTP sent successfully." });
   } catch (error) {
+    logger.error(`Error sending signup OTP: ${error.message}`);
     return res.status(500).json({
       error: "Server error",
       message: error.message,
@@ -173,9 +184,11 @@ exports.sendSignupOTP = async (req, res) => {
  */
 exports.signup = async (req, res) => {
   try {
+    logger.info("Attempting admin account signup");
     // 1. Check if admin already exists
     const adminCount = await Admin.countDocuments();
     if (adminCount > 0) {
+      logger.warn("Signup denied: An admin account already exists.");
       return res
         .status(403)
         .json({ error: "An admin account already exists." });
@@ -184,6 +197,7 @@ exports.signup = async (req, res) => {
     // 2. Validate request body
     const { error, value } = signupSchema.validate(req.body);
     if (error) {
+      logger.warn(`Signup validation failed: ${error.details[0].message}`);
       return res.status(400).json({ error: error.details[0].message });
     }
 
@@ -195,12 +209,14 @@ exports.signup = async (req, res) => {
 
     const otpRecord = await OTP.findOne({ otp: hashedOTP });
     if (!otpRecord) {
+      logger.warn("Signup failed: Invalid or expired OTP provided");
       return res.status(400).json({ error: "Invalid or expired OTP." });
     }
 
     // Verify email is not registered yet (in case they verified but another admin was created)
     const existingAdmin = await Admin.findOne({ email: otpRecord.email });
     if (existingAdmin) {
+      logger.warn(`Signup failed: Admin with email ${otpRecord.email} already exists`);
       return res.status(403).json({ error: "An admin account with this email already exists." });
     }
 
@@ -217,6 +233,7 @@ exports.signup = async (req, res) => {
       isVerified: true,
     });
     await admin.save();
+    logger.info(`Admin account created successfully for: ${otpRecord.email}`);
 
     // Delete OTP after successful signup
     await OTP.deleteOne({ _id: otpRecord._id });
@@ -225,6 +242,7 @@ exports.signup = async (req, res) => {
       .status(201)
       .json({ message: "Admin account created successfully." });
   } catch (error) {
+    logger.error(`Error in admin signup: ${error.message}`);
     if (error.code === 11000) {
       return res.status(400).json({ error: "Email already in use." });
     }
@@ -245,13 +263,17 @@ exports.signup = async (req, res) => {
  */
 exports.login = async (req, res) => {
   try {
+    logger.info("Attempting admin account login");
     const { error, value } = loginSchema.validate(req.body);
     if (error) {
+      logger.warn(`Login validation failed: ${error.details[0].message}`);
       return res.status(400).json({ error: error.details[0].message });
     }
 
-    const admin = await Admin.findOne({ email: value.email.toLowerCase() });
+    const email = value.email.toLowerCase();
+    const admin = await Admin.findOne({ email });
     if (!admin) {
+      logger.warn(`Login failed: Admin user not found with email: ${email}`);
       return res
         .status(401)
         .json({ error: `User not found with this email, ${value.email}` });
@@ -259,6 +281,7 @@ exports.login = async (req, res) => {
 
     const isMatch = await bcrypt.compare(value.password, admin.password);
     if (!isMatch) {
+      logger.warn(`Login failed: Incorrect password for admin: ${email}`);
       return res.status(401).json({ error: "Invalid email or password." });
     }
 
@@ -267,6 +290,7 @@ exports.login = async (req, res) => {
     // Update last login
     admin.lastLogin = Date.now();
     await admin.save();
+    logger.info(`Admin login successful. Session token generated for Admin ID: ${admin._id}`);
 
     // Set HTTP-Only Cookie
     res.cookie("token", token, {
@@ -286,6 +310,7 @@ exports.login = async (req, res) => {
       },
     });
   } catch (error) {
+    logger.error(`Error in admin login: ${error.message}`);
     return res.status(500).json({
       error: "Server error",
       message: error.message,
@@ -303,13 +328,17 @@ exports.login = async (req, res) => {
  */
 exports.forgotPassword = async (req, res) => {
   try {
+    logger.info("Request received for admin forgot password / password reset OTP");
     const { error, value } = forgotPasswordSchema.validate(req.body);
     if (error) {
+      logger.warn(`Forgot password request validation failed: ${error.details[0].message}`);
       return res.status(400).json({ error: error.details[0].message });
     }
 
-    const admin = await Admin.findOne({ email: value.email.toLowerCase() });
+    const email = value.email.toLowerCase();
+    const admin = await Admin.findOne({ email });
     if (!admin) {
+      logger.info(`Forgot password request for unregistered email: ${email}`);
       // Return success even if not found to prevent email enumeration
       return res
         .status(200)
@@ -334,6 +363,7 @@ exports.forgotPassword = async (req, res) => {
 
     // Send Email (send raw OTP, keep hashed in DB)
     await sendPasswordResetOTP(admin.email, rawOTP);
+    logger.info(`Password reset OTP generated and sent successfully to ${email}`);
 
     return res
       .status(200)
@@ -342,6 +372,7 @@ exports.forgotPassword = async (req, res) => {
           "If that email is registered, a password reset link has been sent.",
       });
   } catch (error) {
+    logger.error(`Error in admin forgotPassword: ${error.message}`);
     return res.status(500).json({
       error: "Server error",
       message: error.message,
@@ -359,8 +390,10 @@ exports.forgotPassword = async (req, res) => {
  */
 exports.resetPassword = async (req, res) => {
   try {
+    logger.info("Attempting admin password reset with OTP verification");
     const { error, value } = resetPasswordSchema.validate(req.body);
     if (error) {
+      logger.warn(`Password reset validation failed: ${error.details[0].message}`);
       return res.status(400).json({ error: error.details[0].message });
     }
 
@@ -371,6 +404,7 @@ exports.resetPassword = async (req, res) => {
 
     const resetRecord = await OTP.findOne({ otp: hashedOTP });
     if (!resetRecord) {
+      logger.warn("Password reset failed: Invalid or expired OTP provided");
       return res
         .status(400)
         .json({ error: "Invalid or expired OTP." });
@@ -378,6 +412,7 @@ exports.resetPassword = async (req, res) => {
 
     const admin = await Admin.findOne({ email: resetRecord.email });
     if (!admin) {
+      logger.warn(`Password reset failed: Admin not found for email ${resetRecord.email}`);
       return res.status(400).json({ error: "Admin not found." });
     }
 
@@ -386,6 +421,7 @@ exports.resetPassword = async (req, res) => {
     admin.password = await bcrypt.hash(value.password, salt);
     admin.passwordChangedAt = Date.now();
     await admin.save();
+    logger.info(`Password has been successfully reset for admin email: ${resetRecord.email}`);
 
     // Delete token after use
     await OTP.deleteOne({ _id: resetRecord._id });
@@ -394,6 +430,7 @@ exports.resetPassword = async (req, res) => {
       .status(200)
       .json({ message: "Password has been successfully reset." });
   } catch (error) {
+    logger.error(`Error in admin resetPassword: ${error.message}`);
     return res.status(500).json({
       error: "Server error",
       message: error.message,
@@ -410,6 +447,7 @@ exports.resetPassword = async (req, res) => {
  * @returns {Object} JSON response indicating logout was successful.
  */
 exports.logout = (req, res) => {
+  logger.info("Admin logging out. Clearing token cookie.");
   res.clearCookie("token");
   return res.status(200).json({ message: "Logout successful." });
 };
@@ -423,12 +461,15 @@ exports.logout = (req, res) => {
  */
 exports.updateAdmin = async (req, res) => {
   try {
+    logger.info("Attempting to update admin profile");
     const { error, value } = updateAdminSchema.validate(req.body);
     if (error) {
+      logger.warn(`Update admin validation failed: ${error.details[0].message}`);
       return res.status(400).json({ error: error.details[0].message });
     }
 
     const admin = req.admin; // Provided by authMiddleware
+    logger.info(`Updating admin details for Admin ID: ${admin._id}`);
 
     if (value.firstName) admin.firstName = value.firstName;
     if (value.lastName) admin.lastName = value.lastName;
@@ -436,6 +477,7 @@ exports.updateAdmin = async (req, res) => {
     if (value.profilePicture !== undefined) admin.profilePicture = value.profilePicture;
 
     await admin.save();
+    logger.info(`Admin profile updated successfully for Admin ID: ${admin._id}`);
 
     return res.status(200).json({
       message: "Profile updated successfully.",
@@ -450,6 +492,7 @@ exports.updateAdmin = async (req, res) => {
       },
     });
   } catch (error) {
+    logger.error(`Error updating admin details: ${error.message}`);
     return res.status(500).json({
       error: "Server error",
       message: error.message,

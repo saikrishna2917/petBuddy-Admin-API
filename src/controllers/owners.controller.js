@@ -1,4 +1,5 @@
 const PetOwnerProfile = require("../models/petOwnersProfileModel");
+const petsModel = require("../models/petsModel");
 const logger = require("../utils/logger");
 
 /**
@@ -47,9 +48,22 @@ exports.getOwnersList = async (req, res) => {
         profilePicture: 1,
       })
       .limit(parseInt(limit))
-      .skip(skipIndex);
-
+      .skip(skipIndex)
+      .lean();
+    
     const totalCount = await PetOwnerProfile.countDocuments(query);
+    const petsArray = owners.map((owner) => owner._id);
+    const petsData = await petsModel.find({ isDeleted: false, petOwnerID: { $in: petsArray } });
+
+    const petCountByOwner = {};
+    petsData.forEach((pet) => {
+      const ownerId = pet.petOwnerID.toString();
+      petCountByOwner[ownerId] = (petCountByOwner[ownerId] || 0) + 1;
+    });
+
+    owners.forEach((owner) => {
+      owner.petsCount = petCountByOwner[owner._id.toString()] || 0;
+    });
 
     const [totalOwners, activeOwners, blockedOwners] = await Promise.all([
       PetOwnerProfile.countDocuments({ isDeleted: false }),
@@ -66,7 +80,7 @@ exports.getOwnersList = async (req, res) => {
         total: totalOwners,
         active: activeOwners,
         blocked: blockedOwners,
-        pets: 0, // Note: pet model not found, returning 0 for now
+        pets: petsData.length, // Note: pet model not found, returning 0 for now
       },
       data: owners,
       pagination: {

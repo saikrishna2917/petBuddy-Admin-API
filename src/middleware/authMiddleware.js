@@ -1,5 +1,5 @@
 const jwt = require("jsonwebtoken");
-const Admin = require("../models/Admin");
+const petBuddyUsersModel = require("../models/petBuddyUsersModel");
 
 exports.authorization = async (req, res, next) => {
   // Define public routes that do not require authentication
@@ -46,7 +46,7 @@ exports.authorization = async (req, res, next) => {
     );
 
     // 3. Find admin and attach to request
-    const admin = await Admin.findById(decoded.id).select("-password");
+    const admin = await petBuddyUsersModel.findById(decoded.id).select("-password");
     if (!admin) {
       return res
         .status(401)

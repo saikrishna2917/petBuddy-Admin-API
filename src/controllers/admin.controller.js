@@ -1,4 +1,4 @@
-const Admin = require("../models/Admin");
+const petBuddyUsersModel = require("../models/petBuddyUsersModel");
 const OTP = require("../models/OTP");
 const { sendPasswordResetOTP, sendSignupOTP } = require("../utils/email");
 const jwt = require("jsonwebtoken");
@@ -75,9 +75,9 @@ const updateAdminSchema = Joi.object({
  * @param {string} adminId - The MongoDB ObjectId of the admin.
  * @returns {string} The signed JWT token valid for 1 day.
  */
-const generateToken = (adminId) => {
+const generateToken = (adminId, role, firstname, lastname) => {
   return jwt.sign(
-    { id: adminId },
+    { id: adminId, role: role, firstname: firstname, lastname: lastname },
     process.env.JWT_SECRET || "secret-fallback",
     {
       expiresIn: "1d",
@@ -95,9 +95,9 @@ const generateToken = (adminId) => {
 exports.checkRegistration = async (req, res) => {
   try {
     logger.info("Checking admin registration status");
-    const adminCount = await Admin.countDocuments();
+    const adminCount = await petBuddyUsersModel.countDocuments({ role: "SUPER_ADMIN" });
     if (adminCount === 0) {
-      logger.info("Admin registration check: no admin registered yet");
+      logger.info("Super-Admin registration check: no admin registered yet");
       return res
         .status(200)
         .json({
@@ -105,10 +105,10 @@ exports.checkRegistration = async (req, res) => {
           message: "No admin account exists. Please sign up.",
         });
     }
-    logger.info("Admin registration check: admin account already exists");
+    logger.info("Super-Admin registration check: admin account already exists");
     return res
       .status(200)
-      .json({ registered: true, message: "Admin account already exists." });
+      .json({ registered: true, message: "Super-Admin account already exists." });
   } catch (error) {
     logger.error(`Error checking admin registration status: ${error.message}`);
     return res.status(500).json({
@@ -138,10 +138,10 @@ exports.sendSignupOTP = async (req, res) => {
     const email = value.email.toLowerCase();
     logger.info(`Sending signup OTP to email: ${email}`);
 
-    const adminCount = await Admin.countDocuments();
+    const adminCount = await petBuddyUsersModel.countDocuments({ role: "SUPER_ADMIN" });
     if (adminCount > 0) {
-      logger.warn(`Signup OTP request denied for ${email}. Admin already exists.`);
-      return res.status(403).json({ error: "An admin account already exists." });
+      logger.warn(`Signup OTP request denied for ${email}. Super-Admin already exists.`);
+      return res.status(403).json({ error: "An Super-Admin account already exists." });
     }
 
     // Generate 6-digit OTP
@@ -186,12 +186,12 @@ exports.signup = async (req, res) => {
   try {
     logger.info("Attempting admin account signup");
     // 1. Check if admin already exists
-    const adminCount = await Admin.countDocuments();
+    const adminCount = await petBuddyUsersModel.countDocuments({ role: "SUPER_ADMIN" });
     if (adminCount > 0) {
-      logger.warn("Signup denied: An admin account already exists.");
+      logger.warn("Signup denied: An Super-Admin account already exists.");
       return res
         .status(403)
-        .json({ error: "An admin account already exists." });
+        .json({ error: "An Super-Admin account already exists." });
     }
 
     // 2. Validate request body
@@ -214,18 +214,18 @@ exports.signup = async (req, res) => {
     }
 
     // Verify email is not registered yet (in case they verified but another admin was created)
-    const existingAdmin = await Admin.findOne({ email: otpRecord.email });
+    const existingAdmin = await petBuddyUsersModel.findOne({ email: otpRecord.email });
     if (existingAdmin) {
-      logger.warn(`Signup failed: Admin with email ${otpRecord.email} already exists`);
-      return res.status(403).json({ error: "An admin account with this email already exists." });
+      logger.warn(`Signup failed: Super-Admin with email ${otpRecord.email} already exists`);
+      return res.status(403).json({ error: "An Super-Admin account with this email already exists." });
     }
 
     // 4. Hash Password
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(value.password, salt);
 
-    // 5. Create Admin
-    const admin = new Admin({
+    // 5. Create Super-Admin
+    const admin = new petBuddyUsersModel({
       firstName: otpRecord.firstName,
       lastName: otpRecord.lastName,
       email: otpRecord.email,
@@ -233,14 +233,14 @@ exports.signup = async (req, res) => {
       isVerified: true,
     });
     await admin.save();
-    logger.info(`Admin account created successfully for: ${otpRecord.email}`);
+    logger.info(`Super-Admin account created successfully for: ${otpRecord.email}`);
 
     // Delete OTP after successful signup
     await OTP.deleteOne({ _id: otpRecord._id });
 
     return res
       .status(201)
-      .json({ message: "Admin account created successfully." });
+      .json({ message: "Super-Admin account created successfully." });
   } catch (error) {
     logger.error(`Error in admin signup: ${error.message}`);
     if (error.code === 11000) {
@@ -271,26 +271,26 @@ exports.login = async (req, res) => {
     }
 
     const email = value.email.toLowerCase();
-    const admin = await Admin.findOne({ email });
-    if (!admin) {
-      logger.warn(`Login failed: Admin user not found with email: ${email}`);
+    const petBuddyUsers = await petBuddyUsersModel.findOne({ email, isDeleted: { $ne: true } });
+    if (!petBuddyUsers) {
+      logger.warn(`Login failed: Super-Admin user not found with email: ${email}`);
       return res
         .status(401)
         .json({ error: `User not found with this email, ${value.email}` });
     }
 
-    const isMatch = await bcrypt.compare(value.password, admin.password);
+    const isMatch = await bcrypt.compare(value.password, petBuddyUsers.password);
     if (!isMatch) {
       logger.warn(`Login failed: Incorrect password for admin: ${email}`);
       return res.status(401).json({ error: "Invalid email or password." });
     }
 
-    const token = generateToken(admin._id);
+    const token = generateToken(petBuddyUsers._id, petBuddyUsers.role, petBuddyUsers.firstName, petBuddyUsers.lastName);
 
     // Update last login
-    admin.lastLogin = Date.now();
-    await admin.save();
-    logger.info(`Admin login successful. Session token generated for Admin ID: ${admin._id}`);
+    petBuddyUsers.lastLogin = Date.now();
+    await petBuddyUsers.save();
+    logger.info(`Super-Admin login successful. Session token generated for Super-Admin ID: ${petBuddyUsers._id}`);
 
     // Set HTTP-Only Cookie
     res.cookie("token", token, {
@@ -303,10 +303,11 @@ exports.login = async (req, res) => {
       message: "Login successful",
       token,
       admin: {
-        id: admin._id,
-        firstName: admin.firstName,
-        lastName: admin.lastName,
-        email: admin.email,
+        id: petBuddyUsers._id,
+        firstName: petBuddyUsers.firstName,
+        lastName: petBuddyUsers.lastName,
+        email: petBuddyUsers.email,
+        role: petBuddyUsers.role
       },
     });
   } catch (error) {
@@ -336,7 +337,7 @@ exports.forgotPassword = async (req, res) => {
     }
 
     const email = value.email.toLowerCase();
-    const admin = await Admin.findOne({ email });
+    const admin = await petBuddyUsersModel.findOne({ email });
     if (!admin) {
       logger.info(`Forgot password request for unregistered email: ${email}`);
       // Return success even if not found to prevent email enumeration
@@ -410,10 +411,10 @@ exports.resetPassword = async (req, res) => {
         .json({ error: "Invalid or expired OTP." });
     }
 
-    const admin = await Admin.findOne({ email: resetRecord.email });
+    const admin = await petBuddyUsersModel.findOne({ email: resetRecord.email });
     if (!admin) {
-      logger.warn(`Password reset failed: Admin not found for email ${resetRecord.email}`);
-      return res.status(400).json({ error: "Admin not found." });
+      logger.warn(`Password reset failed: Super-Admin not found for email ${resetRecord.email}`);
+      return res.status(400).json({ error: "Super-Admin not found." });
     }
 
     // Hash New Password
@@ -447,7 +448,7 @@ exports.resetPassword = async (req, res) => {
  * @returns {Object} JSON response indicating logout was successful.
  */
 exports.logout = (req, res) => {
-  logger.info("Admin logging out. Clearing token cookie.");
+  logger.info("Super-Admin logging out. Clearing token cookie.");
   res.clearCookie("token");
   return res.status(200).json({ message: "Logout successful." });
 };

@@ -7,6 +7,7 @@ router.use("/api/auth", require("./auth.routes"));
 router.use("/api/admin", require("./admin.routes"));
 router.use("/api/dashboard", require("./dashboard.routes"));
 router.use("/api/dashboard", require("./owners.routes"));
+router.use("/api/user-management", require("./userManagement.routes"));
 /**
  * @swagger
  * /welcome:

@@ -29,14 +29,22 @@ const adminSchema = new mongoose.Schema(
     },
     role: {
       type: String,
-      enum: ['SuperAdmin', 'Moderator', 'Support'],
-      default: 'SuperAdmin',
+      enum: ["SUPER_ADMIN", "OPERATIONS_ADMIN", "SUPPORT_ADMIN", "FINANCE_ADMIN"],
+      default: "SUPER_ADMIN",
     },
     profilePicture: {
       type: String,
       default: '',
     },
     phoneNumber: {
+      type: String,
+      default: '',
+    },
+    city: {
+      type: String,
+      default: '',
+    },
+    state: {
       type: String,
       default: '',
     },
@@ -50,10 +58,14 @@ const adminSchema = new mongoose.Schema(
     passwordChangedAt: {
       type: Date,
     },
+    isDeleted: {
+      type: Boolean,
+      default: false,
+    },
   },
   { timestamps: true }
 );
 
-const Admin = mongoose.model('Admin', adminSchema);
+const petBuddyUsersModel = mongoose.model('petBuddyUsers', adminSchema);
 
-module.exports = Admin;
+module.exports = petBuddyUsersModel;

@@ -38,15 +38,15 @@ const supportSchema = new mongoose.Schema(
     },
     assignedTo: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "petBuddyUsersModel",
+      ref: "petBuddyUsers",
     },
     escalatedTo: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "petBuddyUsersModel",
+      ref: "petBuddyUsers",
     },
     resolvedBy: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "petBuddyUsersModel",
+      ref: "petBuddyUsers",
     },
     escalatedAt: { type: Date },
     assignedAt: { type: Date },
@@ -58,7 +58,7 @@ const supportSchema = new mongoose.Schema(
       {
         author: {
           type: mongoose.Schema.Types.ObjectId,
-          ref: "petBuddyUsersModel",
+          ref: "petBuddyUsers",
         },
         content: { type: String },
         createdAt: { type: Date, default: Date.now },
@@ -66,7 +66,7 @@ const supportSchema = new mongoose.Schema(
         editedAt: { type: Date },
         editedBy: {
           type: mongoose.Schema.Types.ObjectId,
-          ref: "petBuddyUsersModel",
+          ref: "petBuddyUsers",
         },
       },
     ],

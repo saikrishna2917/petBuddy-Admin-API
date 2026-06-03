@@ -13,6 +13,7 @@ router.use("/api/supports", require("./support.routes"));
 router.use("/api/notifications", require("./notifications.routes"));
 router.use("/api/messages", require("./messages.routes"));
 router.use("/api/permissions", require("./permission.routes"));
+router.use("/api/reviews", require("./ReviewAndRatings.routes"));
 /**
  * @swagger
  * /welcome:

@@ -320,8 +320,8 @@ exports.login = async (req, res) => {
     // Set HTTP-Only Cookie
     res.cookie("token", token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+      secure: true, // Required for sameSite: 'none'
+      sameSite: "none", // Required for cross-origin requests
       maxAge: 24 * 60 * 60 * 1000, // 1 day
     });
 
@@ -482,8 +482,8 @@ exports.logout = (req, res) => {
   logger.info("Super-Admin logging out. Clearing token cookie.");
   res.clearCookie("token", {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+    secure: true,
+    sameSite: "none",
   });
   return res.status(200).json({ message: "Logout successful." });
 };

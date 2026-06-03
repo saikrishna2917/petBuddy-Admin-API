@@ -1,11 +1,11 @@
 const petBuddyUsersModel = require("../models/petBuddyUsersModel");
 const OTP = require("../models/OTP");
 const { sendPasswordResetOTP, sendSignupOTP } = require("../utils/email");
-const jwt = require("jsonwebtoken");
 const Joi = require("joi");
 const bcrypt = require("bcryptjs");
 const crypto = require("crypto");
 const logger = require("../utils/logger");
+const generateToken = require("../utils/generateToken");
 
 // Joi Validation Schemas
 const signupSchema = Joi.object({
@@ -24,10 +24,14 @@ const signupSchema = Joi.object({
   confirmPassword: Joi.any().equal(Joi.ref("password")).required().messages({
     "any.only": "Confirm Password does not match Password.",
   }),
-  otp: Joi.string().length(6).pattern(/^[0-9]+$/).required().messages({
-    "string.length": "OTP must be exactly 6 digits.",
-    "string.pattern.base": "OTP must contain only numbers.",
-  }),
+  otp: Joi.string()
+    .length(6)
+    .pattern(/^[0-9]+$/)
+    .required()
+    .messages({
+      "string.length": "OTP must be exactly 6 digits.",
+      "string.pattern.base": "OTP must contain only numbers.",
+    }),
 });
 
 const sendSignupOTPSchema = Joi.object({
@@ -46,10 +50,14 @@ const forgotPasswordSchema = Joi.object({
 });
 
 const resetPasswordSchema = Joi.object({
-  otp: Joi.string().length(6).pattern(/^[0-9]+$/).required().messages({
-    "string.length": "OTP must be exactly 6 digits.",
-    "string.pattern.base": "OTP must contain only numbers.",
-  }),
+  otp: Joi.string()
+    .length(6)
+    .pattern(/^[0-9]+$/)
+    .required()
+    .messages({
+      "string.length": "OTP must be exactly 6 digits.",
+      "string.pattern.base": "OTP must contain only numbers.",
+    }),
   password: Joi.string()
     .min(8)
     .pattern(new RegExp("(?=.*[a-z])"))
@@ -70,22 +78,6 @@ const updateAdminSchema = Joi.object({
 });
 
 /**
- * @function generateToken
- * @description Generates a JSON Web Token (JWT) for the authenticated admin.
- * @param {string} adminId - The MongoDB ObjectId of the admin.
- * @returns {string} The signed JWT token valid for 1 day.
- */
-const generateToken = (adminId, role, firstname, lastname) => {
-  return jwt.sign(
-    { id: adminId, role: role, firstname: firstname, lastname: lastname },
-    process.env.JWT_SECRET || "secret-fallback",
-    {
-      expiresIn: "1d",
-    },
-  );
-};
-
-/**
  * @function checkRegistration
  * @description Checks if any admin account exists in the database. Used to determine whether to show the signup or login page.
  * @param {Object} req - Express request object.
@@ -95,20 +87,21 @@ const generateToken = (adminId, role, firstname, lastname) => {
 exports.checkRegistration = async (req, res) => {
   try {
     logger.info("Checking admin registration status");
-    const adminCount = await petBuddyUsersModel.countDocuments({ role: "SUPER_ADMIN" });
+    const adminCount = await petBuddyUsersModel.countDocuments({
+      role: "SUPER_ADMIN",
+    });
     if (adminCount === 0) {
       logger.info("Super-Admin registration check: no admin registered yet");
-      return res
-        .status(200)
-        .json({
-          registered: false,
-          message: "No admin account exists. Please sign up.",
-        });
+      return res.status(200).json({
+        success: false,
+        // message: "No admin account exists. Please sign up.",
+      });
     }
     logger.info("Super-Admin registration check: admin account already exists");
-    return res
-      .status(200)
-      .json({ registered: true, message: "Super-Admin account already exists." });
+    return res.status(200).json({
+      success: true,
+      // message: "Super-Admin account already exists.",
+    });
   } catch (error) {
     logger.error(`Error checking admin registration status: ${error.message}`);
     return res.status(500).json({
@@ -131,25 +124,30 @@ exports.sendSignupOTP = async (req, res) => {
     logger.info("Request received to send admin signup OTP");
     const { error, value } = sendSignupOTPSchema.validate(req.body);
     if (error) {
-      logger.warn(`Signup OTP request validation failed: ${error.details[0].message}`);
+      logger.warn(
+        `Signup OTP request validation failed: ${error.details[0].message}`,
+      );
       return res.status(400).json({ error: error.details[0].message });
     }
 
     const email = value.email.toLowerCase();
     logger.info(`Sending signup OTP to email: ${email}`);
 
-    const adminCount = await petBuddyUsersModel.countDocuments({ role: "SUPER_ADMIN" });
+    const adminCount = await petBuddyUsersModel.countDocuments({
+      role: "SUPER_ADMIN",
+    });
     if (adminCount > 0) {
-      logger.warn(`Signup OTP request denied for ${email}. Super-Admin already exists.`);
-      return res.status(403).json({ error: "An Super-Admin account already exists." });
+      logger.warn(
+        `Signup OTP request denied for ${email}. Super-Admin already exists.`,
+      );
+      return res
+        .status(403)
+        .json({ error: "An Super-Admin account already exists." });
     }
 
     // Generate 6-digit OTP
     const rawOTP = Math.floor(100000 + Math.random() * 900000).toString();
-    const hashedOTP = crypto
-      .createHash("sha256")
-      .update(rawOTP)
-      .digest("hex");
+    const hashedOTP = crypto.createHash("sha256").update(rawOTP).digest("hex");
 
     // Remove any existing OTP for this email
     await OTP.deleteMany({ email });
@@ -164,7 +162,9 @@ exports.sendSignupOTP = async (req, res) => {
     await sendSignupOTP(email, rawOTP);
     logger.info(`Verification OTP sent successfully to ${email}`);
 
-    return res.status(200).json({ message: "Verification OTP sent successfully." });
+    return res
+      .status(200)
+      .json({ message: "Verification OTP sent successfully." });
   } catch (error) {
     logger.error(`Error sending signup OTP: ${error.message}`);
     return res.status(500).json({
@@ -186,7 +186,9 @@ exports.signup = async (req, res) => {
   try {
     logger.info("Attempting admin account signup");
     // 1. Check if admin already exists
-    const adminCount = await petBuddyUsersModel.countDocuments({ role: "SUPER_ADMIN" });
+    const adminCount = await petBuddyUsersModel.countDocuments({
+      role: "SUPER_ADMIN",
+    });
     if (adminCount > 0) {
       logger.warn("Signup denied: An Super-Admin account already exists.");
       return res
@@ -214,10 +216,16 @@ exports.signup = async (req, res) => {
     }
 
     // Verify email is not registered yet (in case they verified but another admin was created)
-    const existingAdmin = await petBuddyUsersModel.findOne({ email: otpRecord.email });
+    const existingAdmin = await petBuddyUsersModel.findOne({
+      email: otpRecord.email,
+    });
     if (existingAdmin) {
-      logger.warn(`Signup failed: Super-Admin with email ${otpRecord.email} already exists`);
-      return res.status(403).json({ error: "An Super-Admin account with this email already exists." });
+      logger.warn(
+        `Signup failed: Super-Admin with email ${otpRecord.email} already exists`,
+      );
+      return res.status(403).json({
+        error: "An Super-Admin account with this email already exists.",
+      });
     }
 
     // 4. Hash Password
@@ -233,7 +241,9 @@ exports.signup = async (req, res) => {
       isVerified: true,
     });
     await admin.save();
-    logger.info(`Super-Admin account created successfully for: ${otpRecord.email}`);
+    logger.info(
+      `Super-Admin account created successfully for: ${otpRecord.email}`,
+    );
 
     // Delete OTP after successful signup
     await OTP.deleteOne({ _id: otpRecord._id });
@@ -271,26 +281,41 @@ exports.login = async (req, res) => {
     }
 
     const email = value.email.toLowerCase();
-    const petBuddyUsers = await petBuddyUsersModel.findOne({ email, isDeleted: { $ne: true } });
+    const petBuddyUsers = await petBuddyUsersModel.findOne({
+      email,
+      isDeleted: { $ne: true },
+    });
     if (!petBuddyUsers) {
-      logger.warn(`Login failed: Super-Admin user not found with email: ${email}`);
+      logger.warn(
+        `Login failed: Super-Admin user not found with email: ${email}`,
+      );
       return res
         .status(401)
         .json({ error: `User not found with this email, ${value.email}` });
     }
 
-    const isMatch = await bcrypt.compare(value.password, petBuddyUsers.password);
+    const isMatch = await bcrypt.compare(
+      value.password,
+      petBuddyUsers.password,
+    );
     if (!isMatch) {
       logger.warn(`Login failed: Incorrect password for admin: ${email}`);
       return res.status(401).json({ error: "Invalid email or password." });
     }
 
-    const token = generateToken(petBuddyUsers._id, petBuddyUsers.role, petBuddyUsers.firstName, petBuddyUsers.lastName);
+    const token = await generateToken(
+      petBuddyUsers._id,
+      petBuddyUsers.role,
+      petBuddyUsers.firstName,
+      petBuddyUsers.lastName,
+    );
 
     // Update last login
     petBuddyUsers.lastLogin = Date.now();
     await petBuddyUsers.save();
-    logger.info(`Super-Admin login successful. Session token generated for Super-Admin ID: ${petBuddyUsers._id}`);
+    logger.info(
+      `Super-Admin login successful. Session token generated for Super-Admin ID: ${petBuddyUsers._id}`,
+    );
 
     // Set HTTP-Only Cookie
     res.cookie("token", token, {
@@ -307,7 +332,7 @@ exports.login = async (req, res) => {
         firstName: petBuddyUsers.firstName,
         lastName: petBuddyUsers.lastName,
         email: petBuddyUsers.email,
-        role: petBuddyUsers.role
+        role: petBuddyUsers.role,
       },
     });
   } catch (error) {
@@ -329,10 +354,14 @@ exports.login = async (req, res) => {
  */
 exports.forgotPassword = async (req, res) => {
   try {
-    logger.info("Request received for admin forgot password / password reset OTP");
+    logger.info(
+      "Request received for admin forgot password / password reset OTP",
+    );
     const { error, value } = forgotPasswordSchema.validate(req.body);
     if (error) {
-      logger.warn(`Forgot password request validation failed: ${error.details[0].message}`);
+      logger.warn(
+        `Forgot password request validation failed: ${error.details[0].message}`,
+      );
       return res.status(400).json({ error: error.details[0].message });
     }
 
@@ -341,20 +370,15 @@ exports.forgotPassword = async (req, res) => {
     if (!admin) {
       logger.info(`Forgot password request for unregistered email: ${email}`);
       // Return success even if not found to prevent email enumeration
-      return res
-        .status(200)
-        .json({
-          message:
-            "If that email is registered, a password reset link has been sent.",
-        });
+      return res.status(200).json({
+        message:
+          "If that email is registered, a password reset link has been sent.",
+      });
     }
 
     // Generate 6-digit OTP
     const rawOTP = Math.floor(100000 + Math.random() * 900000).toString();
-    const hashedOTP = crypto
-      .createHash("sha256")
-      .update(rawOTP)
-      .digest("hex");
+    const hashedOTP = crypto.createHash("sha256").update(rawOTP).digest("hex");
 
     // Save Token
     await OTP.create({
@@ -364,14 +388,14 @@ exports.forgotPassword = async (req, res) => {
 
     // Send Email (send raw OTP, keep hashed in DB)
     await sendPasswordResetOTP(admin.email, rawOTP);
-    logger.info(`Password reset OTP generated and sent successfully to ${email}`);
+    logger.info(
+      `Password reset OTP generated and sent successfully to ${email}`,
+    );
 
-    return res
-      .status(200)
-      .json({
-        message:
-          "If that email is registered, a password reset link has been sent.",
-      });
+    return res.status(200).json({
+      message:
+        "If that email is registered, a password reset link has been sent.",
+    });
   } catch (error) {
     logger.error(`Error in admin forgotPassword: ${error.message}`);
     return res.status(500).json({
@@ -394,7 +418,9 @@ exports.resetPassword = async (req, res) => {
     logger.info("Attempting admin password reset with OTP verification");
     const { error, value } = resetPasswordSchema.validate(req.body);
     if (error) {
-      logger.warn(`Password reset validation failed: ${error.details[0].message}`);
+      logger.warn(
+        `Password reset validation failed: ${error.details[0].message}`,
+      );
       return res.status(400).json({ error: error.details[0].message });
     }
 
@@ -406,14 +432,16 @@ exports.resetPassword = async (req, res) => {
     const resetRecord = await OTP.findOne({ otp: hashedOTP });
     if (!resetRecord) {
       logger.warn("Password reset failed: Invalid or expired OTP provided");
-      return res
-        .status(400)
-        .json({ error: "Invalid or expired OTP." });
+      return res.status(400).json({ error: "Invalid or expired OTP." });
     }
 
-    const admin = await petBuddyUsersModel.findOne({ email: resetRecord.email });
+    const admin = await petBuddyUsersModel.findOne({
+      email: resetRecord.email,
+    });
     if (!admin) {
-      logger.warn(`Password reset failed: Super-Admin not found for email ${resetRecord.email}`);
+      logger.warn(
+        `Password reset failed: Super-Admin not found for email ${resetRecord.email}`,
+      );
       return res.status(400).json({ error: "Super-Admin not found." });
     }
 
@@ -422,7 +450,9 @@ exports.resetPassword = async (req, res) => {
     admin.password = await bcrypt.hash(value.password, salt);
     admin.passwordChangedAt = Date.now();
     await admin.save();
-    logger.info(`Password has been successfully reset for admin email: ${resetRecord.email}`);
+    logger.info(
+      `Password has been successfully reset for admin email: ${resetRecord.email}`,
+    );
 
     // Delete token after use
     await OTP.deleteOne({ _id: resetRecord._id });
@@ -465,7 +495,9 @@ exports.updateAdmin = async (req, res) => {
     logger.info("Attempting to update admin profile");
     const { error, value } = updateAdminSchema.validate(req.body);
     if (error) {
-      logger.warn(`Update admin validation failed: ${error.details[0].message}`);
+      logger.warn(
+        `Update admin validation failed: ${error.details[0].message}`,
+      );
       return res.status(400).json({ error: error.details[0].message });
     }
 
@@ -475,10 +507,13 @@ exports.updateAdmin = async (req, res) => {
     if (value.firstName) admin.firstName = value.firstName;
     if (value.lastName) admin.lastName = value.lastName;
     if (value.phoneNumber !== undefined) admin.phoneNumber = value.phoneNumber;
-    if (value.profilePicture !== undefined) admin.profilePicture = value.profilePicture;
+    if (value.profilePicture !== undefined)
+      admin.profilePicture = value.profilePicture;
 
     await admin.save();
-    logger.info(`Admin profile updated successfully for Admin ID: ${admin._id}`);
+    logger.info(
+      `Admin profile updated successfully for Admin ID: ${admin._id}`,
+    );
 
     return res.status(200).json({
       message: "Profile updated successfully.",

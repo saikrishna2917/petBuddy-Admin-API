@@ -57,7 +57,6 @@
 //   run();
 // }
 
-
 require("dotenv").config();
 
 const app = require("./utils/express");
@@ -103,6 +102,7 @@ async function initializeApp() {
       });
     });
 
+    // Start the server using Express app directly (Vercel compatible)
     if (process.env.NODE_ENV !== "production") {
       app.listen(process.env.PORT, () => {
         logger.info(`Server running on port ${process.env.PORT}`);

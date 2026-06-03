@@ -108,8 +108,25 @@ exports.verifyOTP = async (req, res) => {
     otpRecord.isVerified = true;
     await otpRecord.save();
 
+    // Check if user exists but is deleted, and send details to frontend so they can be bound to the form
+    const existingUser = await petBuddyUsersModel.findOne({ email });
+    let userData = null;
+    if (existingUser && existingUser.isDeleted) {
+      userData = {
+        firstName: existingUser.firstName,
+        lastName: existingUser.lastName,
+        phone: existingUser.phoneNumber,
+        role: existingUser.role,
+        city: existingUser.city,
+        state: existingUser.state
+      };
+    }
+
     logger.info(`OTP verified successfully for ${email}`);
-    return res.status(200).json({ message: "OTP verified successfully." });
+    return res.status(200).json({ 
+      message: "OTP verified successfully.",
+      user: userData
+    });
   } catch (error) {
     logger.error(`Error in verifyOTP: ${error.message}`);
     return res.status(500).json({ error: "Server error", message: error.message });

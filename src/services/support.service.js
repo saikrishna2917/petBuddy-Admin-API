@@ -17,10 +17,32 @@ class SupportService {
       const count = await supportsModel.countDocuments();
       const ticketID = `SUT${(count + 1).toString().padStart(11, "0")}`;
 
+      // Let's find who raised it to store in timeline
+      let raiserName = "System";
+      if (data.raisedByType === "PET_OWNER") {
+        const owner = await petOwnerProfileModel.findById(data.raisedBy);
+        if (owner) raiserName = `${owner.firstName} ${owner.lastName}`;
+      } else if (data.raisedByType === "PET_SITTER") {
+        const sitter = await PetSitterModel.findById(data.raisedBy);
+        if (sitter) raiserName = `${sitter.firstName} ${sitter.lastName}`;
+      } else if (data.raisedByType === "ADMIN") {
+        const admin = await petBuddyUsersModel.findById(data.raisedBy);
+        if (admin) raiserName = `${admin.firstName} ${admin.lastName}`;
+      }
+
       const newTicket = new supportsModel({
         ...data,
         ticketID,
         status: "OPEN",
+        timeline: [
+          {
+            action: "Ticket Created",
+            by: raiserName,
+            performedBy: data.raisedByType === "ADMIN" ? data.raisedBy : undefined,
+            details: `Ticket was successfully created under category ${data.category}.`,
+            date: new Date()
+          }
+        ]
       });
 
       const savedTicket = await newTicket.save();
@@ -115,8 +137,17 @@ class SupportService {
     try {
       const ticket = await supportsModel
         .findById(id)
-        .populate("assignedTo", "firstName lastName")
+        .populate("assignedTo", "firstName lastName email")
+        .populate("escalatedTo", "firstName lastName email")
+        .populate("resolvedBy", "firstName lastName email")
         .populate("notes.author", "firstName lastName email")
+        .populate({
+          path: "bookingID",
+          populate: [
+            { path: "ownerID", select: "firstName lastName email phone phoneNumber" },
+            { path: "sitterID", select: "firstName lastName email phone phoneNumber" }
+          ]
+        })
         .lean();
 
       if (ticket && ticket.raisedBy) {
@@ -139,22 +170,95 @@ class SupportService {
   /**
    * Update the status of a ticket
    */
-  async updateStatus(id, newStatus, resolvedBy) {
+  async updateStatus(id, data, adminId) {
     try {
-      const updateData = { status: newStatus };
+      const ticket = await supportsModel.findById(id);
+      if (!ticket) return null;
 
-      if (newStatus === "RESOLVED") {
-        updateData.resolvedAt = new Date();
-        if (resolvedBy) updateData.resolvedBy = resolvedBy;
-      } else if (newStatus === "CLOSED") {
-        updateData.closedAt = new Date();
+      const updateData = {};
+      const timelineEntries = [];
+
+      let adminName = "System";
+      if (adminId) {
+        const admin = await petBuddyUsersModel.findById(adminId);
+        if (admin) adminName = `${admin.firstName} ${admin.lastName}`;
+      }
+
+      // Handle status update
+      const resolvedStatus = data.status || (data.assigneeId ? "IN_PROGRESS" : null);
+      if (resolvedStatus && resolvedStatus !== ticket.status) {
+        updateData.status = resolvedStatus;
+        if (resolvedStatus === "RESOLVED") {
+          updateData.resolvedAt = new Date();
+          if (adminId) updateData.resolvedBy = adminId;
+        } else if (resolvedStatus === "CLOSED") {
+          updateData.closedAt = new Date();
+        }
+
+        let actionName = `${resolvedStatus.charAt(0) + resolvedStatus.slice(1).toLowerCase().replace("_", " ")} Ticket`;
+        if (
+          (ticket.status === "RESOLVED" || ticket.status === "CLOSED") &&
+          (resolvedStatus === "OPEN" || resolvedStatus === "IN_PROGRESS")
+        ) {
+          actionName = "Ticket Reopened";
+        }
+
+        timelineEntries.push({
+          action: actionName,
+          by: adminName,
+          performedBy: adminId,
+          details: `Ticket status updated from ${ticket.status} to ${resolvedStatus}.`,
+          date: new Date()
+        });
+      }
+
+      // Handle ticket assignment
+      if (data.assigneeId && String(data.assigneeId) !== String(ticket.assignedTo)) {
+        updateData.assignedTo = data.assigneeId;
+        updateData.assignedAt = new Date();
+
+        const assignee = await petBuddyUsersModel.findById(data.assigneeId);
+        const assigneeName = assignee ? `${assignee.firstName} ${assignee.lastName}` : "Unknown Admin";
+
+        timelineEntries.push({
+          action: "Ticket Assigned",
+          by: adminName,
+          performedBy: adminId,
+          details: `Ticket assigned to ${assigneeName}.`,
+          date: new Date()
+        });
+      }
+
+      // Handle ticket escalation
+      if (data.escalateToId && String(data.escalateToId) !== String(ticket.escalatedTo)) {
+        updateData.escalatedTo = data.escalateToId;
+        updateData.escalatedAt = new Date();
+        updateData.priority = "URGENT";
+
+        const escalateTo = await petBuddyUsersModel.findById(data.escalateToId);
+        const escalateToName = escalateTo ? `${escalateTo.firstName} ${escalateTo.lastName}` : "Unknown Admin";
+
+        timelineEntries.push({
+          action: "Ticket Escalated",
+          by: adminName,
+          performedBy: adminId,
+          details: `Ticket escalated to ${escalateToName} with URGENT priority.`,
+          date: new Date()
+        });
       }
 
       const updatedTicket = await supportsModel.findByIdAndUpdate(
         id,
-        { $set: updateData },
+        { 
+          $set: updateData,
+          $push: { timeline: { $each: timelineEntries } }
+        },
         { new: true }
-      );
+      )
+      .populate("assignedTo", "firstName lastName email")
+      .populate("escalatedTo", "firstName lastName email")
+      .populate("resolvedBy", "firstName lastName email")
+      .lean();
 
       return updatedTicket;
     } catch (error) {
@@ -162,6 +266,76 @@ class SupportService {
       throw error;
     }
   }
+
+  /**
+   * Add a note to a ticket
+   */
+  async addNote(id, authorId, content) {
+    try {
+      const admin = await petBuddyUsersModel.findById(authorId);
+      const adminName = admin ? `${admin.firstName} ${admin.lastName}` : "System";
+
+      const updatedTicket = await supportsModel.findByIdAndUpdate(
+        id,
+        { 
+          $push: { 
+            notes: { 
+              author: authorId, 
+              content: content, 
+              createdAt: new Date() 
+            },
+            timeline: {
+              action: "Note Added",
+              by: adminName,
+              performedBy: authorId,
+              details: content.length > 60 ? `${content.substring(0, 60)}...` : content,
+              date: new Date()
+            }
+          } 
+        },
+        { new: true }
+      ).populate("notes.author", "firstName lastName email").lean();
+
+      return updatedTicket;
+    } catch (error) {
+      logger.error(`Error in SupportService.addNote: ${error.message}`);
+      throw error;
+    }
+  }
+
+  async editNote(id, noteId, authorId, content) {
+    try {
+      const ticket = await supportsModel.findById(id);
+      if (!ticket) return null;
+      
+      const note = ticket.notes.id(noteId);
+      if (!note) return null;
+
+      note.content = content;
+      note.isEdited = true;
+      note.editedAt = new Date();
+      note.editedBy = authorId;
+
+      const admin = await petBuddyUsersModel.findById(authorId);
+      const adminName = admin ? `${admin.firstName} ${admin.lastName}` : "System";
+
+      ticket.timeline.push({
+        action: "Note Edited",
+        by: adminName,
+        performedBy: authorId,
+        details: content.length > 60 ? `${content.substring(0, 60)}...` : content,
+        date: new Date()
+      });
+
+      await ticket.save();
+      return await supportsModel.findById(id).populate("notes.author", "firstName lastName email").lean();
+    } catch (error) {
+      logger.error(`Error in SupportService.editNote: ${error.message}`);
+      throw error;
+    }
+  }
+
+
 }
 
 module.exports = new SupportService();

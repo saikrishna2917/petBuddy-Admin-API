@@ -188,4 +188,52 @@ router.patch(
   supportController.updateTicketStatus,
 );
 
+/**
+ * @swagger
+ * /api/supports/support-tickets/{id}/notes:
+ *   post:
+ *     summary: Add an internal note to a specific support ticket
+ *     tags: [Supports]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID of the support ticket
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - content
+ *             properties:
+ *               content:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Note added successfully
+ *       400:
+ *         description: Note content is required
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Support ticket not found
+ *       500:
+ *         description: Failed to add ticket note
+ */
+router.post(
+  "/support-tickets/:id/notes",
+  supportController.addTicketNote,
+);
+
+router.put(
+  "/support-tickets/:id/notes/:noteId",
+  supportController.editTicketNote,
+);
+
 module.exports = router;

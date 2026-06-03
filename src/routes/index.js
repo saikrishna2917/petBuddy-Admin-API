@@ -11,6 +11,8 @@ router.use("/api/bookings", require("./bookings.routes"));
 router.use("/api/user-management", require("./userManagement.routes"));
 router.use("/api/supports", require("./support.routes"));
 router.use("/api/notifications", require("./notifications.routes"));
+router.use("/api/messages", require("./messages.routes"));
+router.use("/api/permissions", require("./permission.routes"));
 /**
  * @swagger
  * /welcome:

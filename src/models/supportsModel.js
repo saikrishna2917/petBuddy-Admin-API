@@ -70,6 +70,18 @@ const supportSchema = new mongoose.Schema(
         },
       },
     ],
+    timeline: [
+      {
+        action: { type: String, required: true },
+        by: { type: String, required: true },
+        performedBy: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "petBuddyUsers",
+        },
+        date: { type: Date, default: Date.now },
+        details: { type: String },
+      },
+    ],
   },
   {
     timestamps: true,

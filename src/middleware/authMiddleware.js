@@ -14,7 +14,7 @@ exports.authorization = async (req, res, next) => {
     "/swagger.json",
     "/",
   ];
-///////////////////////////
+  ///////////////////////////
   // If the path is in the public list, or starts with /api-docs, skip token check
   if (publicPaths.includes(req.path) || req.path.startsWith("/api-docs")) {
     return next();
@@ -46,7 +46,9 @@ exports.authorization = async (req, res, next) => {
     );
 
     // 3. Find admin and attach to request
-    const admin = await petBuddyUsersModel.findById(decoded.id).select("-password");
+    const admin = await petBuddyUsersModel
+      .findById(decoded.id)
+      .select("-password");
     if (!admin) {
       return res
         .status(401)

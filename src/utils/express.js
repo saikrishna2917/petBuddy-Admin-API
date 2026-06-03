@@ -16,19 +16,25 @@ app.use(fileUpload());
 app.use(cookieParser());
 app.use("/public", express.static(path.join(__dirname, "../../public")));
 
-// OWASP Top 10 - A05:2021 Security Misconfiguration
 // Enhanced CORS configuration
-const allowedOrigins = ["*"];
-const isWildcardOrigin = allowedOrigins.includes("*");
-
 const corsOptions = {
   origin: function (origin, callback) {
-    // Allow requests with no origin (mobile apps, Postman, curl, Postman, etc.)
+    // Read allowed origins from environment variable (comma-separated), fallback to localhost
+    const allowedOrigins = process.env.ALLOWED_ORIGINS
+      ? process.env.ALLOWED_ORIGINS.split(",").map((o) => o.trim())
+      : [
+          "http://localhost:5173",
+          "http://localhost:5174",
+          "http://localhost:5175",
+        ];
+
+    // Allow requests with no origin (e.g., Postman, curl, mobile apps)
     if (!origin) {
       return callback(null, true);
     }
 
-    if (isWildcardOrigin || allowedOrigins.includes(origin)) {
+    // Check if the request's origin is in the allowed list or if wildcard is explicitly set
+    if (allowedOrigins.includes(origin) || allowedOrigins.includes("*")) {
       return callback(null, true);
     }
 
@@ -42,7 +48,7 @@ const corsOptions = {
     "X-Requested-With",
     "X-Request-ID",
   ],
-  credentials: !isWildcardOrigin,
+  credentials: true, // IMPORTANT: true is required for cookies (HTTP-only auth)
   maxAge: 86400, // 24 hours
 };
 

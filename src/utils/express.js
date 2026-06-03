@@ -12,6 +12,10 @@ const cookieParser = require("cookie-parser");
 const globalMiddlewares = require("../middleware");
 
 const app = express();
+
+// Disable ETag to prevent 304 Not Modified responses which can cause CORS headers to be stripped by Vercel
+app.disable("etag");
+
 app.use(fileUpload());
 app.use(cookieParser());
 app.use("/public", express.static(path.join(__dirname, "../../public")));

@@ -72,7 +72,7 @@ app.use((req, res, next) => {
   const allowedOrigins = process.env.ALLOWED_ORIGINS
     ? process.env.ALLOWED_ORIGINS.split(",").map((o) => o.trim())
     : ["http://localhost:5173", "http://localhost:5174"];
-  
+
   const origin = req.headers.origin;
   if (allowedOrigins.includes(origin)) {
     res.setHeader("Access-Control-Allow-Origin", origin);
@@ -86,11 +86,11 @@ app.use((req, res, next) => {
   res.setHeader("Access-Control-Allow-Credentials", "true");
   res.setHeader(
     "Access-Control-Allow-Methods",
-    "GET,OPTIONS,PATCH,DELETE,POST,PUT"
+    "GET,OPTIONS,PATCH,DELETE,POST,PUT",
   );
   res.setHeader(
     "Access-Control-Allow-Headers",
-    "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization"
+    "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization",
   );
 
   if (req.method === "OPTIONS") {
@@ -100,16 +100,18 @@ app.use((req, res, next) => {
   next();
 });
 
-
-// Connect to MongoDB asynchronously without blocking the exported app
-connectDB()
-  .then(() => {
-    console.log("MongoDB Connected Successfully");
-  })
-  .catch((err) => {
-    console.log("Server Initialization Error:", err);
-    logger.error(`Server Error: ${err}`);
-  });
+// Ensure MongoDB is connected before handling any requests (Serverless Best Practice)
+app.use(async (req, res, next) => {
+  try {
+    await connectDB();
+    next();
+  } catch (error) {
+    logger.error(`Database Connection Error: ${error.message}`);
+    return res
+      .status(500)
+      .json({ success: false, message: "Database connection failed" });
+  }
+});
 
 app.use(authorization);
 
@@ -121,7 +123,7 @@ app.use(
     customCssUrl:
       "https://cdn.jsdelivr.net/npm/swagger-ui-themes@3.0.0/themes/3.x/theme-material.css",
     customSiteTitle: "PetBuddy API Documentation",
-  })
+  }),
 );
 
 app.get("/swagger.json", (req, res) => {

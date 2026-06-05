@@ -1,12 +1,17 @@
 const mongoose = require("mongoose");
 
-const petsSchema = new mongoose.Schema({
-    petOwnerID: { type: mongoose.Schema.Types.ObjectId, ref: "petOwnerProfileModel", required: true },
+const petsSchema = new mongoose.Schema(
+  {
+    petOwnerID: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "petOwnerProfileModel",
+      required: true,
+    },
     petName: { type: String, require: true },
-    petType: { type: String, },
+    petType: { type: String },
     breed: { type: String },
-    gender: { type: String, enum: ["Male", "Female", "Others"]},
-    age: { type: Number, },
+    gender: { type: String, enum: ["Male", "Female", "Others"] },
+    age: { type: Number },
     weight: { type: String },
     color: { type: String },
     dateOfBirth: { type: Date },
@@ -33,9 +38,11 @@ const petsSchema = new mongoose.Schema({
       type: Boolean,
       default: false,
     },
-},{
-    timestamps: true
-});
+  },
+  {
+    timestamps: true,
+  },
+);
 
 petsSchema.index({ petOwnerID: 1 });
 

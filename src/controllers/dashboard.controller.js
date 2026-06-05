@@ -47,11 +47,6 @@ exports.getSitterStats = async (req, res) => {
       status: "BLOCKED",
     });
 
-    const inactiveSitters = await PetSitter.countDocuments({
-      isDeleted: false,
-      status: "INACTIVE",
-    });
-
     logger.info(
       `Sitter stats fetched successfully: total=${totalSitters}, pending=${pendingSitters}, verified=${verifiedSitters}, rejected=${rejectedSitters}`,
     );
@@ -63,7 +58,6 @@ exports.getSitterStats = async (req, res) => {
         verified: verifiedSitters,
         rejected: rejectedSitters,
         blocked: blockedSitters,
-        inactive: inactiveSitters,
       },
     });
   } catch (error) {
@@ -128,6 +122,14 @@ exports.getSittersList = async (req, res) => {
 
     const totalCount = await PetSitter.countDocuments(query);
 
+    const [totalSitters, pendingSitters, verifiedSitters, rejectedSitters, blockedSitters] = await Promise.all([
+      PetSitter.countDocuments({ isDeleted: false }),
+      PetSitter.countDocuments({ isDeleted: false, status: "PENDING" }),
+      PetSitter.countDocuments({ isDeleted: false, status: "APPROVED" }),
+      PetSitter.countDocuments({ isDeleted: false, status: "REJECTED" }),
+      PetSitter.countDocuments({ isDeleted: false, status: "BLOCKED" }),
+    ]);
+
     // Map sitters and fetch availability from schedule model using common helper function
     logger.info(`Resolving availability for ${sitters.length} sitters`);
     const sittersWithAvailability = await Promise.all(
@@ -139,6 +141,13 @@ exports.getSittersList = async (req, res) => {
     );
     return res.status(200).json({
       success: true,
+      stats: {
+        total: totalSitters,
+        pending: pendingSitters,
+        verified: verifiedSitters,
+        rejected: rejectedSitters,
+        blocked: blockedSitters,
+      },
       data: sittersWithAvailability,
       pagination: {
         total: totalCount,
@@ -170,7 +179,7 @@ exports.updateSitterStatus = async (req, res) => {
 
     if (
       !status ||
-      !["PENDING", "APPROVED", "REJECTED", "BLOCKED", "INACTIVE"].includes(
+      !["PENDING", "APPROVED", "REJECTED", "BLOCKED"].includes(
         status.toUpperCase(),
       )
     ) {

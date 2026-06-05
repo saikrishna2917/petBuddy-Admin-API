@@ -6,6 +6,14 @@ router.use("/api/auth", require("./auth.routes"));
 // Mount Admin routes (protected)
 router.use("/api/admin", require("./admin.routes"));
 router.use("/api/dashboard", require("./dashboard.routes"));
+router.use("/api/dashboard", require("./owners.routes"));
+router.use("/api/bookings", require("./bookings.routes"));
+router.use("/api/user-management", require("./userManagement.routes"));
+router.use("/api/supports", require("./support.routes"));
+router.use("/api/notifications", require("./notifications.routes"));
+router.use("/api/messages", require("./messages.routes"));
+router.use("/api/permissions", require("./permission.routes"));
+router.use("/api/reviews", require("./ReviewAndRatings.routes"));
 /**
  * @swagger
  * /welcome:

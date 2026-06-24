@@ -22,6 +22,7 @@ const supportSchema = new mongoose.Schema(
         "PET_OWNER",
         "TECHNICAL",
         "ACCOUNT",
+        "General Support",
         "OTHER",
       ],
       required: true,

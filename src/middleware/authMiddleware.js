@@ -2,7 +2,6 @@ const jwt = require("jsonwebtoken");
 const petBuddyUsersModel = require("../models/petBuddyUsersModel");
 
 exports.authorization = async (req, res, next) => {
-  // Define public routes that do not require authentication
   const publicPaths = [
     "/api/auth/check",
     "/api/auth/send-otp",
@@ -10,6 +9,7 @@ exports.authorization = async (req, res, next) => {
     "/api/auth/login",
     "/api/auth/forgot-password",
     "/api/auth/reset-password",
+    "/api/supports/raiseTicket",
     "/welcome",
     "/swagger.json",
     "/",
@@ -46,9 +46,19 @@ exports.authorization = async (req, res, next) => {
     );
 
     // 3. Find admin and attach to request
-    const admin = await petBuddyUsersModel
-      .findById(decoded.id)
+    // Support both 'id' (Admin Token) and 'userId' (Pet Owner/Sitter Token)
+    const tokenUserId = decoded.id || decoded.userId;
+
+    let admin = await petBuddyUsersModel
+      .findById(tokenUserId)
       .select("-password");
+      
+    // If not found in admin model, check pet owners model for cross-API calls
+    if (!admin) {
+      const petOwnersProfileModel = require("../models/petOwnersProfileModel");
+      admin = await petOwnersProfileModel.findById(tokenUserId).select("-password");
+    }
+
     if (!admin) {
       return res
         .status(401)

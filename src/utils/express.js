@@ -23,13 +23,14 @@ app.use("/public", express.static(path.join(__dirname, "../../public")));
 // Enhanced CORS configuration
 const corsOptions = {
   origin: function (origin, callback) {
-    // Read allowed origins from environment variable (comma-separated), fallback to localhost
     const allowedOrigins = process.env.ALLOWED_ORIGINS
       ? process.env.ALLOWED_ORIGINS.split(",").map((o) => o.trim())
       : [
           "http://localhost:5173",
           "http://localhost:5174",
           "http://localhost:5175",
+          "http://localhost:3000",
+          "https://pet-buddy-three.vercel.app",
         ];
 
     // Allow requests with no origin (e.g., Postman, curl, mobile apps)
@@ -37,8 +38,12 @@ const corsOptions = {
       return callback(null, true);
     }
 
-    // Check if the request's origin is in the allowed list or if wildcard is explicitly set
-    if (allowedOrigins.includes(origin) || allowedOrigins.includes("*")) {
+    // Check if origin is explicitly allowed or if it's a Vercel preview/production URL
+    if (
+      allowedOrigins.includes(origin) ||
+      allowedOrigins.includes("*") ||
+      origin.endsWith(".vercel.app")
+    ) {
       return callback(null, true);
     }
 

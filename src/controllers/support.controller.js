@@ -49,6 +49,7 @@ exports.getTickets = async (req, res) => {
       priority,
       category,
       raisedByType,
+      raisedBy,
       search,
       sort,
       page,
@@ -60,6 +61,7 @@ exports.getTickets = async (req, res) => {
       priority,
       category,
       raisedByType,
+      raisedBy,
     };
 
     const result = await supportService.fetchTickets(

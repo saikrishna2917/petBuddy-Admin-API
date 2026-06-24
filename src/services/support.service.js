@@ -70,11 +70,14 @@ class SupportService {
         query.priority = filters.priority.toUpperCase();
       }
       if (filters.category && filters.category !== "All") {
-        query.category = filters.category.toUpperCase();
+        query.category = filters.category.toUpperCase().replace(" ", "_");
       }
       if (filters.raisedByType && filters.raisedByType !== "All") {
         let role = filters.raisedByType.toUpperCase().replace(" ", "_");
         query.raisedByType = role;
+      }
+      if (filters.raisedBy) {
+        query.raisedBy = filters.raisedBy;
       }
 
       if (search) {

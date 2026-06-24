@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
 
 const adminSchema = new mongoose.Schema(
   {
@@ -29,24 +29,29 @@ const adminSchema = new mongoose.Schema(
     },
     role: {
       type: String,
-      enum: ["SUPER_ADMIN", "OPERATIONS_ADMIN", "SUPPORT_ADMIN", "FINANCE_ADMIN"],
+      enum: [
+        "SUPER_ADMIN",
+        "OPERATIONS_ADMIN",
+        "SUPPORT_ADMIN",
+        "FINANCE_ADMIN",
+      ],
       default: "SUPER_ADMIN",
     },
     profilePicture: {
       type: String,
-      default: '',
+      default: "",
     },
     phoneNumber: {
       type: String,
-      default: '',
+      default: "",
     },
     city: {
       type: String,
-      default: '',
+      default: "",
     },
     state: {
       type: String,
-      default: '',
+      default: "",
     },
     lastLogin: {
       type: Date,
@@ -63,9 +68,9 @@ const adminSchema = new mongoose.Schema(
       default: false,
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
-const petBuddyUsersModel = mongoose.model('petBuddyUsers', adminSchema);
+const petBuddyUsersModel = mongoose.model("petBuddyUsers", adminSchema);
 
 module.exports = petBuddyUsersModel;

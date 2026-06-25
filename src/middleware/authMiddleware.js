@@ -10,6 +10,7 @@ exports.authorization = async (req, res, next) => {
     "/api/auth/forgot-password",
     "/api/auth/reset-password",
     "/api/supports/raiseTicket",
+    "/api/supports/support-tickets",
     "/welcome",
     "/swagger.json",
     "/",
